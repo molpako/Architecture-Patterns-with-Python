@@ -55,7 +55,10 @@ class Batch:
             return False
         if other.eta is None:
             return True
-        return self.eta < other.eta
+        return self.eta > other.eta
+
+    def __repr__(self):
+        return f"<Batch {self.reference}>"
 
 
 def allocate(line: OrderLine, bathces: list[Batch]) -> str:

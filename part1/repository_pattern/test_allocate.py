@@ -1,4 +1,10 @@
-from model import Batch, OrderLine
+from model import allocate, Batch, OrderLine
+
+from datetime import date, timedelta
+
+today = date.today()
+tomorrow = today + timedelta(days=1)
+later = tomorrow + timedelta(days=10)
 
 
 def test_prefers_current_stock_batches_to_shipments():
