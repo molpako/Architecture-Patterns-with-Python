@@ -61,7 +61,14 @@ class Batch:
         return f"<Batch {self.reference}>"
 
 
+class OutOfStock(Exception):
+    pass
+
+
 def allocate(line: OrderLine, bathces: list[Batch]) -> str:
-    batch = next(b for b in sorted(bathces) if b.can_allocate(line))
+    try:
+        batch = next(b for b in sorted(bathces) if b.can_allocate(line))
+    except StopIteration:
+        raise OutOfStock(f"Out of stock for sku {line.sku}")
     batch.allocate(line)
     return batch.reference
