@@ -4,12 +4,16 @@ from datetime import date
 
 @dataclass(frozen=True)
 class OrderLine:
+    """値オブジェクト"""
+
     orderid: str
     sku: str
     qty: int
 
 
 class Batch:
+    """エンティティ"""
+
     def __init__(self, ref: str, sku: str, qty: int, eta: date | None):
         self.reference = ref
         self.sku = sku
@@ -35,3 +39,13 @@ class Batch:
 
     def can_allocate(self, line: OrderLine) -> bool:
         return self.sku == line.sku and self.available_quantity >= line.qty
+
+    def __eq__(self, other):
+        if not isinstance(other, Batch):
+            return False
+        return other.reference == self.reference
+
+    def __hash__(self):
+        """辞書検索の高速化などに使われる hash
+        エンティティクラスに実装する場合は reference などの不変な値に基づくのが一般的"""
+        return hash(self.reference)
