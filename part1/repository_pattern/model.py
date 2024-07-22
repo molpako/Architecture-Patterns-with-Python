@@ -49,3 +49,9 @@ class Batch:
         """辞書検索の高速化などに使われる hash
         エンティティクラスに実装する場合は reference などの不変な値に基づくのが一般的"""
         return hash(self.reference)
+
+
+def allocate(line: OrderLine, bathces: list[Batch]) -> str:
+    batch = next(b for b in sorted(bathces) if b.can_allocate(line))
+    batch.allocate(line)
+    return batch.reference
