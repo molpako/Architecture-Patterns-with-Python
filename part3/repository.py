@@ -1,9 +1,11 @@
 import abc
+from collections.abc import AsyncIterator
 
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 import model
-from backend.query import Querier
 from backend.models import Batch
+from backend.query import AsyncQuerier
 
 
 class AbstractRepository(abc.ABC):
@@ -17,19 +19,25 @@ class AbstractRepository(abc.ABC):
 
 
 class BackendRepository(AbstractRepository):
-    def __init__(self, querier: Querier):
-        self.querier = querier
+    def __init__(self, conn: AsyncConnection):
+        self.querier = AsyncQuerier(conn)
 
-    def add(self, batch) -> None:
-        self.querier.add_batch(
+    async def add(self, batch) -> None:
+        await self.querier.add_batch(
             reference=batch.reference,
             sku=batch.sku,
             _purchased_quantity=batch._purchased_quantity,
             eta=batch.eta,
         )
 
-    def get(self, reference) -> Batch | None:
-        return self.querier.get_batch(reference=reference)
+    async def get(self, reference) -> Batch | None:
+        return await self.querier.get_batch(reference=reference)
 
-    def list(self) -> list[Batch]:
-        return list(self.querier.all_batches())
+    async def list(self) -> AsyncIterator[model.Batch]:
+        async for batch in self.querier.all_batches():
+            yield model.Batch(
+                str(batch.reference),
+                str(batch.sku),
+                batch._purchased_quantity,
+                batch.eta,
+            )
