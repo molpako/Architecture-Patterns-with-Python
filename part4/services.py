@@ -11,11 +11,11 @@ def is_valid_sku(sku, batches):
 
 
 async def allocate(
-    line: model.OrderLine, repo: repository.BackendRepository, conn
+    line: model.OrderLine, repo: repository.AbstractRepository, conn
 ) -> str:
-    batches: list[model.Batch] = [r async for r in repo.list()]
+    batches: list[model.Batch] = [i async for i in repo.list()]
     if not is_valid_sku(line.sku, batches):
         raise InvalidSku(f"Invalid sku {line.sku}")
     batchref = model.allocate(line, batches)
-    conn.commit()
+    await conn.commit()
     return batchref
