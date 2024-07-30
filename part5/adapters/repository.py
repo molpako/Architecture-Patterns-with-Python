@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-import model
+from domain import model
 from backend.query import AsyncQuerier
 
 

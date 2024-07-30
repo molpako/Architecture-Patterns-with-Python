@@ -1,6 +1,6 @@
-import model
+from domain import model
 from backend import query
-import repository
+from adapters import repository
 
 
 # repository のテストは querier を抽象化することにより行う？
