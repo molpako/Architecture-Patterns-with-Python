@@ -1,8 +1,13 @@
+from datetime import date, timedelta
+
 import pytest
 
 from domain import model
 from adapters import repository
 from service_layer import services
+
+today = date.today()
+tomorrow = today + timedelta(days=1)
 
 
 class FakeRepository(repository.AbstractRepository):
@@ -59,3 +64,17 @@ async def test_commits():
 
     await services.allocate(line, repo, session)
     assert session.committed is True
+
+
+@pytest.mark.asyncio
+async def test_prefers_current_stock_batches_to_shipments():
+    in_stock_batch = model.Batch("in-stock-batch", "RETRO-CLOCK", 100, eta=None)
+    shipment_batch = model.Batch("shipment-batch", "RETRO-CLOCK", 100, eta=tomorrow)
+    repo = FakeRepository([in_stock_batch, shipment_batch])
+    session = FakeSession()
+    line = model.OrderLine("oref", "RETRO-CLOCK", 10)
+
+    await services.allocate(line, repo, session)
+
+    assert in_stock_batch.available_quantity == 90
+    assert shipment_batch.available_quantity == 100
