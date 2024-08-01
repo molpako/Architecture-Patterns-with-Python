@@ -1,19 +1,20 @@
+import pytest
 from domain import model
-from backend import query
 from adapters import repository
 
+from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.sql import text
 
-# repository のテストは querier を抽象化することにより行う？
-def test_repository_can_save_a_batch(session):
+
+@pytest.mark.asyncio
+async def test_repository_can_save_a_batch(async_conn: AsyncConnection):
     batch = model.Batch("batch1", "RUSTY-SOAPDISH", 100, eta=None)
 
-    repo = repository.BackendRepository(query.Querier(session))
-    repo.add(batch)  # テストのターゲット
-    session.commit()
+    repo = repository.BackendRepository(async_conn)
+    await repo.add(batch)  # テストのターゲット
+    await async_conn.commit()
 
-    rows = list(
-        session.execute(
-            'SELECT reference, sku, _purchased_quantity, eta FROM "batches"'
-        )
+    rows = await async_conn.execute(
+        text('SELECT reference, sku, _purchased_quantity, eta FROM "batches"')
     )
-    assert rows == [("batch1", "RUSTY-SOAPDISH", 100, None)]
+    assert list(rows) == [("batch1", "RUSTY-SOAPDISH", 100, None)]
