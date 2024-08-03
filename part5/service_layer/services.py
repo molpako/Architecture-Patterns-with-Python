@@ -1,3 +1,4 @@
+from datetime import date
 from domain import model
 from adapters import repository
 
@@ -19,3 +20,15 @@ async def allocate(
     batchref = model.allocate(model.OrderLine(orderid, sku, qty), batches)
     await conn.commit()
     return batchref
+
+
+async def add_batch(
+    ref: str,
+    sku: str,
+    qty: int,
+    eta: date | None,
+    repo: repository.AbstractRepository,
+    conn,
+) -> None:
+    await repo.add(model.Batch(ref, sku, qty, eta))
+    await conn.commit()

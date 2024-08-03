@@ -2,7 +2,6 @@ from datetime import date, timedelta
 
 import pytest
 
-from domain import model
 from adapters import repository
 from service_layer import services
 
@@ -13,10 +12,6 @@ tomorrow = today + timedelta(days=1)
 class FakeRepository(repository.AbstractRepository):
     def __init__(self, batches):
         self._batches = set(batches)
-
-    @staticmethod
-    def for_batch(ref, sku, qty, eta):
-        return FakeRepository([model.Batch(ref, sku, qty, eta)])
 
     async def add(self, batch):
         self._batches.add(batch)
@@ -42,36 +37,31 @@ class FakeSession:
 
 @pytest.mark.asyncio
 async def test_returns_allocation():
-    repo = FakeRepository.for_batch("b1", "COMPLICATED-LAMP", 100, eta=None)
+    repo, session = FakeRepository([]), FakeSession()
+    await services.add_batch("b1", "COMPLICATED-LAMP", 100, None, repo, session)
     result = await services.allocate("o1", "COMPLICATED-LAMP", 10, repo, FakeSession())
     assert result == "b1"
 
 
 @pytest.mark.asyncio
 async def test_error_for_invalid_sku():
-    repo = FakeRepository.for_batch("b1", "AREALSKU", 100, eta=None)
-
+    repo, session = FakeRepository([]), FakeSession()
+    await services.add_batch("b1", "AREALSKU", 100, None, repo, session)
     with pytest.raises(services.InvalidSku, match="Invalid sku NONEXISTENTSKU"):
         await services.allocate("o1", "NONEXISTENTSKU", 10, repo, FakeSession())
 
 
 @pytest.mark.asyncio
 async def test_commits():
-    repo = FakeRepository.for_batch("b1", "OMINOUS-MIRROR", 100, eta=None)
-    session = FakeSession()
-
+    repo, session = FakeRepository([]), FakeSession()
+    await services.add_batch("b1", "OMINOUS-MIRROR", 100, None, repo, session)
     await services.allocate("o1", "OMINOUS-MIRROR", 10, repo, session)
     assert session.committed is True
 
 
 @pytest.mark.asyncio
-async def test_prefers_current_stock_batches_to_shipments():
-    in_stock_batch = model.Batch("in-stock-batch", "RETRO-CLOCK", 100, eta=None)
-    shipment_batch = model.Batch("shipment-batch", "RETRO-CLOCK", 100, eta=tomorrow)
-    repo = FakeRepository([in_stock_batch, shipment_batch])
-    session = FakeSession()
-
-    await services.allocate("oref", "RETRO-CLOCK", 10, repo, session)
-
-    assert in_stock_batch.available_quantity == 90
-    assert shipment_batch.available_quantity == 100
+async def test_add_batch():
+    repo, session = FakeRepository([]), FakeSession()
+    await services.add_batch("b1", "CRUNCHY-ARMCHAIR", 100, None, repo, session)
+    assert await repo.get("b1") is not None
+    assert session.committed
