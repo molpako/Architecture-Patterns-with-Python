@@ -37,10 +37,8 @@ async def allocate_endpoint(item: model.OrderLine):
     logger.debug(f"postgres uri: {config.get_postgres_uri()}")
     conn = await async_conn.start()
     repo = repository.BackendRepository(conn)
-    line = model.OrderLine(item.orderid, item.sku, item.qty)
-
     try:
-        batchref = await services.allocate(line, repo, conn)
+        batchref = await services.allocate(item.orderid, item.sku, item.qty, repo, conn)
     except (model.OutOfStock, services.InvalidSku) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
