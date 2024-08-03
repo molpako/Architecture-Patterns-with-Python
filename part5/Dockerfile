@@ -6,4 +6,4 @@ COPY requirements.txt /tmp
 RUN pip install -r /tmp/requirements.txt
 WORKDIR /code
 COPY *.py /code/
-ENTRYPOINT uvicorn main:app --reload --host 0.0.0.0 --port 8000
+ENTRYPOINT uvicorn entrypoints.main:app --reload --host 0.0.0.0 --port 8000

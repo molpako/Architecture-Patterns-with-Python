@@ -2,11 +2,13 @@
 Presentation Layer
 """
 
+from dataclasses import dataclass
+from datetime import datetime
 import logging
 import sys
 
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import config
@@ -43,3 +45,28 @@ async def allocate_endpoint(item: model.OrderLine):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"batchref": batchref}
+
+
+@dataclass
+class AddBatchRequest:
+    ref: str
+    sku: str
+    qty: int
+    eta: str | None
+
+
+@app.post("/add_batch", status_code=status.HTTP_201_CREATED)
+async def add_batch(item: AddBatchRequest):
+    conn = await async_conn.start()
+    repo = repository.BackendRepository(conn)
+    if item.eta is not None:
+        eta_date = datetime.fromisoformat(item.eta).date()
+    await services.add_batch(
+        item.ref,
+        item.sku,
+        item.qty,
+        eta_date,  # type: _Date | Unbound
+        repo,
+        conn,
+    )
+    return "OK"
