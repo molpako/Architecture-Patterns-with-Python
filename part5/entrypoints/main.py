@@ -8,7 +8,7 @@ import logging
 import sys
 
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import config
@@ -23,9 +23,6 @@ async_engine = create_async_engine(
     echo=True,
 )
 
-async_conn = async_engine.connect()
-
-
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
@@ -34,10 +31,14 @@ stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 
 
-@app.post("/allocate")
-async def allocate_endpoint(item: model.OrderLine):
+async def connection():
+    async with async_engine.connect() as conn:
+        yield conn
+
+
+@app.post("/allocate", status_code=status.HTTP_201_CREATED)
+async def allocate_endpoint(item: model.OrderLine, conn=Depends(connection)):
     logger.debug(f"postgres uri: {config.get_postgres_uri()}")
-    conn = await async_conn.start()
     repo = repository.BackendRepository(conn)
     try:
         batchref = await services.allocate(item.orderid, item.sku, item.qty, repo, conn)
@@ -55,12 +56,10 @@ class AddBatchRequest:
     eta: str | None
 
 
-@app.post("/add_batch", status_code=status.HTTP_201_CREATED)
-async def add_batch(item: AddBatchRequest):
-    conn = await async_conn.start()
+@app.post("/batches", status_code=status.HTTP_201_CREATED)
+async def add_batch(item: AddBatchRequest, conn=Depends(connection)):
     repo = repository.BackendRepository(conn)
-    if item.eta is not None:
-        eta_date = datetime.fromisoformat(item.eta).date()
+    eta_date = datetime.fromisoformat(item.eta).date() if item.eta else None
     await services.add_batch(
         item.ref,
         item.sku,
@@ -69,4 +68,5 @@ async def add_batch(item: AddBatchRequest):
         repo,
         conn,
     )
+
     return "OK"
