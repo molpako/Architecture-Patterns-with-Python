@@ -57,13 +57,13 @@ class AddBatchRequest:
 
 
 @app.post("/batches", status_code=status.HTTP_201_CREATED)
-async def add_batch(item: AddBatchRequest, conn=Depends(connection)):
+async def add_batch(batch: AddBatchRequest, conn=Depends(connection)):
     repo = repository.BackendRepository(conn)
-    eta_date = datetime.fromisoformat(item.eta).date() if item.eta else None
+    eta_date = datetime.fromisoformat(batch.eta).date() if batch.eta else None
     await services.add_batch(
-        item.ref,
-        item.sku,
-        item.qty,
+        batch.ref,
+        batch.sku,
+        batch.qty,
         eta_date,  # type: _Date | Unbound
         repo,
         conn,
