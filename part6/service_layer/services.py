@@ -1,6 +1,7 @@
 from datetime import date
+
 from domain import model
-from adapters import repository
+from service_layer import unit_of_work
 
 
 class InvalidSku(Exception):
@@ -12,13 +13,14 @@ def is_valid_sku(sku, batches):
 
 
 async def allocate(
-    orderid: str, sku: str, qty: int, repo: repository.AbstractRepository, conn
+    orderid: str, sku: str, qty: int, uow: unit_of_work.AbstractUnitOfWork
 ) -> str:
-    batches: list[model.Batch] = [i async for i in repo.list()]
-    if not is_valid_sku(sku, batches):
-        raise InvalidSku(f"Invalid sku {sku}")
-    batchref = model.allocate(model.OrderLine(orderid, sku, qty), batches)
-    await conn.commit()
+    async with uow:
+        batches: list[model.Batch] = [i async for i in uow.batches.list()]
+        if not is_valid_sku(sku, batches):
+            raise InvalidSku(f"Invalid sku {sku}")
+        batchref = model.allocate(model.OrderLine(orderid, sku, qty), batches)
+        await uow.commit()
     return batchref
 
 
@@ -27,8 +29,8 @@ async def add_batch(
     sku: str,
     qty: int,
     eta: date | None,
-    repo: repository.AbstractRepository,
-    conn,
+    uow: unit_of_work.AbstractUnitOfWork,
 ) -> None:
-    await repo.add(model.Batch(ref, sku, qty, eta))
-    await conn.commit()
+    async with uow:
+        await uow.batches.add(model.Batch(ref, sku, qty, eta))
+        await uow.commit()

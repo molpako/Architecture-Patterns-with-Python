@@ -8,20 +8,12 @@ import logging
 import sys
 
 
-from fastapi import FastAPI, HTTPException, status, Depends
-from sqlalchemy.ext.asyncio import create_async_engine
+from fastapi import FastAPI, HTTPException, status
 
-import config
+
 import domain.model as model
-from adapters import repository
-from service_layer import services
+from service_layer import services, unit_of_work
 
-
-async_engine = create_async_engine(
-    config.get_postgres_uri(),
-    future=True,
-    echo=True,
-)
 
 app = FastAPI()
 
@@ -31,17 +23,12 @@ stream_handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(stream_handler)
 
 
-async def connection():
-    async with async_engine.connect() as conn:
-        yield conn
-
-
 @app.post("/allocate", status_code=status.HTTP_201_CREATED)
-async def allocate_endpoint(item: model.OrderLine, conn=Depends(connection)):
-    logger.debug(f"postgres uri: {config.get_postgres_uri()}")
-    repo = repository.BackendRepository(conn)
+async def allocate_endpoint(item: model.OrderLine):
     try:
-        batchref = await services.allocate(item.orderid, item.sku, item.qty, repo, conn)
+        batchref = await services.allocate(
+            item.orderid, item.sku, item.qty, unit_of_work.BackendUnitOfWork()
+        )
     except (model.OutOfStock, services.InvalidSku) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -57,16 +44,13 @@ class AddBatchRequest:
 
 
 @app.post("/batches", status_code=status.HTTP_201_CREATED)
-async def add_batch(batch: AddBatchRequest, conn=Depends(connection)):
-    repo = repository.BackendRepository(conn)
+async def add_batch(batch: AddBatchRequest):
     eta_date = datetime.fromisoformat(batch.eta).date() if batch.eta else None
     await services.add_batch(
         batch.ref,
         batch.sku,
         batch.qty,
         eta_date,  # type: _Date | Unbound
-        repo,
-        conn,
+        unit_of_work.BackendUnitOfWork(),
     )
-
     return "OK"
