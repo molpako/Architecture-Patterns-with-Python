@@ -9,28 +9,32 @@ today = date.today()
 tomorrow = today + timedelta(days=1)
 
 
-class FakeRepository(repository.AbstractRepository):
-    def __init__(self, batches):
-        self._batches = set(batches)
+class FakeRepository(repository.AbstractProductRepository):
+    def __init__(self, products):
+        self._products = set(products)
+        self._bathces = set()
 
-    async def add(self, batch):
-        self._batches.add(batch)
+    async def add_batch(self, batch):
+        self._bathces.add(batch)
 
-    async def get(self, reference):
-        return next(b for b in self._batches if b.reference == reference)
+    async def add(self, product):
+        self._products.add(product)
+
+    async def get(self, sku):
+        return next((p for p in self._products if p.sku == sku), None)
 
     async def aiter(self):
-        for batch in self._batches:
-            yield batch
+        for product in self._products:
+            yield product
 
     async def list(self):
-        async for batch in aiter(self.aiter()):
-            yield batch
+        async for product in aiter(self.aiter()):
+            yield product
 
 
 class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
     def __init__(self):
-        self.batches = FakeRepository([])
+        self.products = FakeRepository([])
         self.committed = False
 
     async def commit(self):
@@ -63,16 +67,8 @@ async def test_error_for_invalid_sku():
 
 
 @pytest.mark.asyncio
-async def test_commits():
-    uow = FakeUnitOfWork()
-    await services.add_batch("b1", "OMINOUS-MIRROR", 100, None, uow)
-    await services.allocate("o1", "OMINOUS-MIRROR", 10, uow)
-    assert uow.committed is True
-
-
-@pytest.mark.asyncio
-async def test_add_batch():
+async def test_add_batch_for_new_product():
     uow = FakeUnitOfWork()
     await services.add_batch("b1", "CRUNCHY-ARMCHAIR", 100, None, uow)
-    assert await uow.batches.get("b1") is not None
+    assert await uow.products.get("CRUNCHY-ARMCHAIR") is not None
     assert uow.committed

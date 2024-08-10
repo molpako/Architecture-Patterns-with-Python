@@ -7,7 +7,7 @@ import config
 
 
 class AbstractUnitOfWork(abc.ABC):
-    batches: repository.AbstractRepository
+    products: repository.AbstractProductRepository
 
     async def __aenter__(self):
         return self
@@ -37,7 +37,7 @@ class BackendUnitOfWork(AbstractUnitOfWork):
 
     async def __aenter__(self):
         self.connection = await self.connection.start()
-        self.batches = repository.BackendRepository(self.connection)
+        self.products = repository.BackendRepository(self.connection)
         return await super().__aenter__()
 
     async def __aexit__(self, *args):

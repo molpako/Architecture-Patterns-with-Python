@@ -28,3 +28,9 @@ class OrderLine:
     sku: Optional[str]
     qty: int
     orderid: Optional[str]
+
+
+@dataclasses.dataclass()
+class Product:
+    sku: str
+    version_number: int

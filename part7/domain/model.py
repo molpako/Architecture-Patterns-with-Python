@@ -65,10 +65,20 @@ class OutOfStock(Exception):
     pass
 
 
-def allocate(line: OrderLine, bathces: list[Batch]) -> str:
-    try:
-        batch = next(b for b in sorted(bathces) if b.can_allocate(line))
-    except StopIteration:
-        raise OutOfStock(f"Out of stock for sku {line.sku}")
-    batch.allocate(line)
-    return batch.reference
+# Product is an aggregate object that we treat as a single unit for the purpose of data changes.
+class Product:
+    def __init__(self, sku: str, batches: list[Batch], version_number: int = 0):
+        self.sku = sku
+        self.batches = batches
+        self.version_number = version_number
+
+    def allocate(self, line: OrderLine) -> str:
+        try:
+            if len(self.batches) == 0:
+                raise OutOfStock(f"xiRRRRRRRRRRRRRR {line.sku}")
+            batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
+        except StopIteration:
+            raise OutOfStock(f"Out of stock for sku {line.sku}")
+        batch.allocate(line)
+        self.version_number += 1
+        return batch.reference

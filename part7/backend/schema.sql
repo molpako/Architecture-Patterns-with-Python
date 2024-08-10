@@ -10,10 +10,17 @@ CREATE TABLE order_lines (
 CREATE TABLE batches (
     id SERIAL PRIMARY KEY,
     reference VARCHAR(255),
-    sku VARCHAR(255),
+    sku VARCHAR(255) REFERENCES products(sku),
     _purchased_quantity INTEGER NOT NULL,
     eta DATE
 );
+
+-- Table: products
+CREATE TABLE products (
+    sku VARCHAR(255) PRIMARY KEY,
+    version_number INTEGER NOT NULL
+);
+
 
 -- Table: allocations
 CREATE TABLE allocations (
