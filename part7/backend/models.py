@@ -17,8 +17,8 @@ class Allocation:
 class Batch:
     id: int
     reference: Optional[str]
-    sku: Optional[str]
-    _purchased_quantity: int
+    sku: str
+    purchased_quantity: int
     eta: Optional[datetime.date]
 
 

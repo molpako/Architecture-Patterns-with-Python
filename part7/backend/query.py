@@ -4,7 +4,7 @@
 # source: query.sql
 import dataclasses
 import datetime
-from typing import Any, AsyncIterator, Iterator, Optional
+from typing import AsyncIterator, Iterator, Optional
 
 import sqlalchemy
 import sqlalchemy.ext.asyncio
@@ -14,10 +14,10 @@ from backend import models
 
 ADD_BATCH = """-- name: add_batch \\:one
 INSERT INTO batches (
-    reference, sku, _purchased_quantity, eta
+    reference, sku, purchased_quantity, eta
 ) VALUES (
     :p1, :p2, :p3, :p4
-) RETURNING id, reference, sku, _purchased_quantity, eta
+) RETURNING id, reference, sku, purchased_quantity, eta
 """
 
 
@@ -31,13 +31,13 @@ INSERT INTO products (
 
 
 ALL_BATCHES = """-- name: all_batches \\:many
-SELECT id, reference, sku, _purchased_quantity, eta
+SELECT id, reference, sku, purchased_quantity, eta
 FROM batches
 """
 
 
 ALL_PRODUCTS = """-- name: all_products \\:many
-SELECT products.sku, products.version_number, batches.id, batches.reference, batches.sku, batches._purchased_quantity, batches.eta
+SELECT products.sku, products.version_number, batches.reference, batches.purchased_quantity, batches.eta
 FROM products
 LEFT JOIN batches ON products.sku = batches.sku
 """
@@ -45,19 +45,22 @@ LEFT JOIN batches ON products.sku = batches.sku
 
 @dataclasses.dataclass()
 class all_productsRow:
-    products: Optional[Any]
-    batches: Optional[Any]
+    sku: str
+    version_number: int
+    reference: Optional[str]
+    purchased_quantity: Optional[int]
+    eta: Optional[datetime.date]
 
 
 GET_BATCH = """-- name: get_batch \\:one
-SELECT id, reference, sku, _purchased_quantity, eta
+SELECT id, reference, sku, purchased_quantity, eta
 FROM batches
 WHERE reference = :p1
 """
 
 
 GET_PRODUCT = """-- name: get_product \\:many
-SELECT products.sku, products.version_number, batches.id, batches.reference, batches.sku, batches._purchased_quantity, batches.eta
+SELECT products.sku, products.version_number, batches.reference, batches.purchased_quantity, batches.eta
 FROM products
 LEFT JOIN batches ON products.sku = batches.sku
 WHERE products.sku = :p1
@@ -66,19 +69,22 @@ WHERE products.sku = :p1
 
 @dataclasses.dataclass()
 class get_productRow:
-    products: Optional[Any]
-    batches: Optional[Any]
+    sku: str
+    version_number: int
+    reference: Optional[str]
+    purchased_quantity: Optional[int]
+    eta: Optional[datetime.date]
 
 
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
 
-    def add_batch(self, *, reference: Optional[str], sku: Optional[str], _purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
+    def add_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
         row = self._conn.execute(sqlalchemy.text(ADD_BATCH), {
             "p1": reference,
             "p2": sku,
-            "p3": _purchased_quantity,
+            "p3": purchased_quantity,
             "p4": eta,
         }).first()
         if row is None:
@@ -87,7 +93,7 @@ class Querier:
             id=row[0],
             reference=row[1],
             sku=row[2],
-            _purchased_quantity=row[3],
+            purchased_quantity=row[3],
             eta=row[4],
         )
 
@@ -107,7 +113,7 @@ class Querier:
                 id=row[0],
                 reference=row[1],
                 sku=row[2],
-                _purchased_quantity=row[3],
+                purchased_quantity=row[3],
                 eta=row[4],
             )
 
@@ -115,8 +121,11 @@ class Querier:
         result = self._conn.execute(sqlalchemy.text(ALL_PRODUCTS))
         for row in result:
             yield all_productsRow(
-                products=row[0],
-                batches=row[1],
+                sku=row[0],
+                version_number=row[1],
+                reference=row[2],
+                purchased_quantity=row[3],
+                eta=row[4],
             )
 
     def get_batch(self, *, reference: Optional[str]) -> Optional[models.Batch]:
@@ -127,7 +136,7 @@ class Querier:
             id=row[0],
             reference=row[1],
             sku=row[2],
-            _purchased_quantity=row[3],
+            purchased_quantity=row[3],
             eta=row[4],
         )
 
@@ -135,8 +144,11 @@ class Querier:
         result = self._conn.execute(sqlalchemy.text(GET_PRODUCT), {"p1": sku})
         for row in result:
             yield get_productRow(
-                products=row[0],
-                batches=row[1],
+                sku=row[0],
+                version_number=row[1],
+                reference=row[2],
+                purchased_quantity=row[3],
+                eta=row[4],
             )
 
 
@@ -144,11 +156,11 @@ class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
 
-    async def add_batch(self, *, reference: Optional[str], sku: Optional[str], _purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
+    async def add_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
         row = (await self._conn.execute(sqlalchemy.text(ADD_BATCH), {
             "p1": reference,
             "p2": sku,
-            "p3": _purchased_quantity,
+            "p3": purchased_quantity,
             "p4": eta,
         })).first()
         if row is None:
@@ -157,7 +169,7 @@ class AsyncQuerier:
             id=row[0],
             reference=row[1],
             sku=row[2],
-            _purchased_quantity=row[3],
+            purchased_quantity=row[3],
             eta=row[4],
         )
 
@@ -177,7 +189,7 @@ class AsyncQuerier:
                 id=row[0],
                 reference=row[1],
                 sku=row[2],
-                _purchased_quantity=row[3],
+                purchased_quantity=row[3],
                 eta=row[4],
             )
 
@@ -185,8 +197,11 @@ class AsyncQuerier:
         result = await self._conn.stream(sqlalchemy.text(ALL_PRODUCTS))
         async for row in result:
             yield all_productsRow(
-                products=row[0],
-                batches=row[1],
+                sku=row[0],
+                version_number=row[1],
+                reference=row[2],
+                purchased_quantity=row[3],
+                eta=row[4],
             )
 
     async def get_batch(self, *, reference: Optional[str]) -> Optional[models.Batch]:
@@ -197,7 +212,7 @@ class AsyncQuerier:
             id=row[0],
             reference=row[1],
             sku=row[2],
-            _purchased_quantity=row[3],
+            purchased_quantity=row[3],
             eta=row[4],
         )
 
@@ -205,6 +220,9 @@ class AsyncQuerier:
         result = await self._conn.stream(sqlalchemy.text(GET_PRODUCT), {"p1": sku})
         async for row in result:
             yield get_productRow(
-                products=row[0],
-                batches=row[1],
+                sku=row[0],
+                version_number=row[1],
+                reference=row[2],
+                purchased_quantity=row[3],
+                eta=row[4],
             )

@@ -1,6 +1,6 @@
 -- name: add_batch :one
 INSERT INTO batches (
-    reference, sku, _purchased_quantity, eta
+    reference, sku, purchased_quantity, eta
 ) VALUES (
     $1, $2, $3, $4
 ) RETURNING *;
@@ -22,12 +22,13 @@ INSERT INTO products (
 ) RETURNING *;
 
 -- name: get_product :many
-SELECT sqlc.embed(products), sqlc.embed(batches)
+SELECT products.*, batches.reference, batches.purchased_quantity, batches.eta
 FROM products
 LEFT JOIN batches ON products.sku = batches.sku
 WHERE products.sku = $1;
 
+
 -- name: all_products :many
-SELECT sqlc.embed(products), sqlc.embed(batches)
+SELECT products.*, batches.reference, batches.purchased_quantity, batches.eta
 FROM products
 LEFT JOIN batches ON products.sku = batches.sku;

@@ -34,7 +34,7 @@ class BackendRepository(AbstractProductRepository):
         await self.querier.add_batch(
             reference=batch.reference,
             sku=batch.sku,
-            _purchased_quantity=batch._purchased_quantity,
+            purchased_quantity=batch._purchased_quantity,
             eta=batch.eta,
         )
 
@@ -46,33 +46,33 @@ class BackendRepository(AbstractProductRepository):
     async def get(self, sku: str) -> model.Product | None:
         rows = self.querier.get_product(sku=sku)
         first = await anext(rows)
-        if first.products is None:
+        if first is None:
             return None
 
         batches: list[model.Batch] = []
-        if first.batches is not None:
-            batches = [
+        if first.reference is not None and first.purchased_quantity is not None:
+            batches.append(
                 model.Batch(
-                    first.batches.reference,
-                    first.batches.sku,
-                    first.batches._purchased_quantity,
-                    first.batches.eta,
+                    first.reference,
+                    first.sku,
+                    first.purchased_quantity,
+                    first.eta,
                 )
-            ]
+            )
         async for row in rows:
-            if row.batches is not None:
+            if row.reference is not None and row.purchased_quantity is not None:
                 batches.append(
                     model.Batch(
-                        row.batches.reference,
-                        row.batches.sku,
-                        row.batches._purchased_quantity,
-                        row.batches.eta,
+                        row.reference,
+                        row.sku,
+                        row.purchased_quantity,
+                        row.eta,
                     )
                 )
         return model.Product(
-            sku=first.products.sku,
+            sku=first.sku,
             batches=batches,
-            version_number=first.products.version_number,
+            version_number=first.version_number,
         )
 
     async def list(self) -> AsyncIterator[model.Product]:

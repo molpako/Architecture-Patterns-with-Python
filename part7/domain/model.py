@@ -74,8 +74,6 @@ class Product:
 
     def allocate(self, line: OrderLine) -> str:
         try:
-            if len(self.batches) == 0:
-                raise OutOfStock(f"xiRRRRRRRRRRRRRR {line.sku}")
             batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
         except StopIteration:
             raise OutOfStock(f"Out of stock for sku {line.sku}")
