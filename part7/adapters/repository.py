@@ -1,5 +1,5 @@
 import abc
-from collections.abc import AsyncIterator
+from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -8,90 +8,70 @@ from backend.query import AsyncQuerier
 
 
 class AbstractProductRepository(abc.ABC):
-    @abc.abstractmethod
-    async def add_batch(self, batch: model.Batch) -> None:
-        raise NotImplementedError
+    def __init__(self):
+        self.seen: set[model.Product] = set()
 
-    @abc.abstractmethod
-    async def add(self, batch: model.Product) -> None:
-        raise NotImplementedError
+    async def add(self, product: model.Product) -> None:
+        self.seen.add(product)
 
-    @abc.abstractmethod
     async def get(self, sku: str) -> model.Product:
+        if product := await self._get(sku):
+            self.seen.add(product)
+        return product
+
+    @abc.abstractmethod
+    async def _get(self, sku: str) -> model.Product:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> AsyncIterator[model.Product]:
-        if False:
-            yield 1
+    async def update(self, product: model.Product) -> None:
+        raise NotImplementedError
 
 
 class BackendRepository(AbstractProductRepository):
     def __init__(self, conn: AsyncConnection):
+        super().__init__()
         self.querier = AsyncQuerier(conn)
 
-    async def add_batch(self, batch: model.Batch) -> None:
-        await self.querier.add_batch(
-            reference=batch.reference,
-            sku=batch.sku,
-            purchased_quantity=batch._purchased_quantity,
-            eta=batch.eta,
-        )
-
     async def add(self, product: model.Product) -> None:
-        await self.querier.add_product(
-            sku=product.sku, version_number=product.version_number
+        await super().add(product)
+        await self.update(product)
+
+    async def update(self, product: model.Product) -> None:
+        if (p := await self._get(sku=product.sku)) is None:
+            p = model.Product(sku=product.sku, batches=[], version_number=0)
+
+        p.version_number = product.version_number
+        await self.querier.update_product(
+            sku=p.sku,
+            version_number=p.version_number,
         )
 
-    async def get(self, sku: str) -> model.Product | None:
-        rows = self.querier.get_product(sku=sku)
-        first = await anext(rows)
-        if first is None:
+    async def _get(self, sku: str) -> model.Product | None:
+        if not (product := await self.querier.get_product(sku=sku)):
             return None
 
-        batches: list[model.Batch] = []
-        if first.reference is not None and first.purchased_quantity is not None:
-            batches.append(
-                model.Batch(
-                    first.reference,
-                    first.sku,
-                    first.purchased_quantity,
-                    first.eta,
-                )
+        batches = [
+            await self.batch_to_domain(
+                b.id, b.reference, b.sku, b.purchased_quantity, b.eta
             )
-        async for row in rows:
-            if row.reference is not None and row.purchased_quantity is not None:
-                batches.append(
-                    model.Batch(
-                        row.reference,
-                        row.sku,
-                        row.purchased_quantity,
-                        row.eta,
-                    )
-                )
+            async for b in self.querier.get_batch(sku=product.sku)
+            if b.reference is not None
+        ]
+
         return model.Product(
-            sku=first.sku,
+            sku=product.sku,
             batches=batches,
-            version_number=first.version_number,
+            version_number=product.version_number,
         )
 
-    async def list(self) -> AsyncIterator[model.Product]:
-        async for row in self.querier.all_products():
-            if row.products is None:
-                raise StopAsyncIteration
-
-            batches: list[model.Batch] = []
-            if row.batches is not None:
-                batches.append(
-                    model.Batch(
-                        row.batches.reference,
-                        row.batches.sku,
-                        row.batches._purchased_quantity,
-                        row.batches.eta,
-                    )
-                )
-            yield model.Product(
-                sku=row.products.sku,
-                batches=batches,
-                version_number=row.products.version_number,
-            )
+    async def batch_to_domain(
+        self, id: int, ref: str, sku: str, qty: int, eta: date | None
+    ) -> model.Batch:
+        batch = model.Batch(ref, sku, qty, eta)
+        batch._allocations = {
+            model.OrderLine(o.orderid, o.sku, o.qty)
+            async for o in self.querier.get_orderlines(id=id)
+            if not (o.orderid is None or o.sku is None)
+        }
+        return batch
