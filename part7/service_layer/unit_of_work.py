@@ -45,6 +45,8 @@ class BackendUnitOfWork(AbstractUnitOfWork):
         await self.connection.close()
 
     async def commit(self):
+        for product in self.products.seen:
+            await self.products.update(product)
         await self.connection.commit()
 
     async def rollback(self):
