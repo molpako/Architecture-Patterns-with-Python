@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import date
 
+from domain import events
+
 
 @dataclass(frozen=True)
 class OrderLine:
@@ -61,22 +63,20 @@ class Batch:
         return self.sku == line.sku and self.available_quantity >= line.qty
 
 
-class OutOfStock(Exception):
-    pass
-
-
 # Product is an aggregate object that we treat as a single unit for the purpose of data changes.
 class Product:
     def __init__(self, sku: str, batches: list[Batch], version_number: int = 0):
         self.sku = sku
         self.batches = batches
         self.version_number = version_number
+        self.events = []
 
-    def allocate(self, line: OrderLine) -> str:
+    def allocate(self, line: OrderLine) -> str | None:
         try:
             batch = next(b for b in sorted(self.batches) if b.can_allocate(line))
         except StopIteration:
-            raise OutOfStock(f"Out of stock for sku {line.sku}")
+            self.events.append(events.OutOfStock(sku=line.sku))
+            return None
         batch.allocate(line)
         self.version_number += 1
         return batch.reference
