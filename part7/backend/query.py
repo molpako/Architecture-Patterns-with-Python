@@ -20,15 +20,6 @@ INSERT INTO allocations (
 """
 
 
-ADD_BATCH = """-- name: add_batch \\:one
-INSERT INTO batches (
-    reference, sku, purchased_quantity, eta
-) VALUES (
-    :p1, :p2, :p3, :p4
-) RETURNING id, reference, sku, purchased_quantity, eta
-"""
-
-
 ADD_ORDER_LINE = """-- name: add_order_line \\:one
 INSERT INTO order_lines (
     sku, qty, orderid
@@ -38,12 +29,33 @@ INSERT INTO order_lines (
 """
 
 
-ADD_PRODUCT = """-- name: add_product \\:one
+CLEAR_ORDER_LINES = """-- name: clear_order_lines \\:exec
+DELETE FROM order_lines
+USING allocations
+WHERE order_lines.id = allocations.orderline_id
+AND allocations.batch_id = :p1
+"""
+
+
+CREATE_OR_UPDATE_BATCH = """-- name: create_or_update_batch \\:one
+INSERT INTO batches (
+    reference, sku, purchased_quantity, eta
+) VALUES (
+    :p1, :p2, :p3, :p4
+) ON CONFLICT (reference)
+DO UPDATE SET sku = :p2, purchased_quantity = :p3, eta = :p4
+RETURNING id, reference, sku, purchased_quantity, eta
+"""
+
+
+CREATE_OR_UPDATE_PRODUCT = """-- name: create_or_update_product \\:one
 INSERT INTO products (
     sku, version_number
 ) VALUES (
     :p1, :p2
-) RETURNING sku, version_number
+) ON CONFLICT (sku)
+DO UPDATE SET version_number = :p2
+RETURNING sku, version_number
 """
 
 
@@ -70,22 +82,6 @@ WHERE products.sku = :p1
 """
 
 
-UPDATE_BATCH = """-- name: update_batch \\:one
-UPDATE batches
-SET sku = :p2, purchased_quantity = :p3, eta = :p4
-WHERE reference = :p1
-RETURNING id, reference, sku, purchased_quantity, eta
-"""
-
-
-UPDATE_PRODUCT = """-- name: update_product \\:one
-UPDATE products
-SET version_number = :p2
-WHERE sku = :p1
-RETURNING sku, version_number
-"""
-
-
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
@@ -100,8 +96,22 @@ class Querier:
             batch_id=row[2],
         )
 
-    def add_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
-        row = self._conn.execute(sqlalchemy.text(ADD_BATCH), {
+    def add_order_line(self, *, sku: Optional[str], qty: int, orderid: Optional[str]) -> Optional[models.OrderLine]:
+        row = self._conn.execute(sqlalchemy.text(ADD_ORDER_LINE), {"p1": sku, "p2": qty, "p3": orderid}).first()
+        if row is None:
+            return None
+        return models.OrderLine(
+            id=row[0],
+            sku=row[1],
+            qty=row[2],
+            orderid=row[3],
+        )
+
+    def clear_order_lines(self, *, batch_id: Optional[int]) -> None:
+        self._conn.execute(sqlalchemy.text(CLEAR_ORDER_LINES), {"p1": batch_id})
+
+    def create_or_update_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_OR_UPDATE_BATCH), {
             "p1": reference,
             "p2": sku,
             "p3": purchased_quantity,
@@ -117,19 +127,8 @@ class Querier:
             eta=row[4],
         )
 
-    def add_order_line(self, *, sku: Optional[str], qty: int, orderid: Optional[str]) -> Optional[models.OrderLine]:
-        row = self._conn.execute(sqlalchemy.text(ADD_ORDER_LINE), {"p1": sku, "p2": qty, "p3": orderid}).first()
-        if row is None:
-            return None
-        return models.OrderLine(
-            id=row[0],
-            sku=row[1],
-            qty=row[2],
-            orderid=row[3],
-        )
-
-    def add_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
-        row = self._conn.execute(sqlalchemy.text(ADD_PRODUCT), {"p1": sku, "p2": version_number}).first()
+    def create_or_update_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_OR_UPDATE_PRODUCT), {"p1": sku, "p2": version_number}).first()
         if row is None:
             return None
         return models.Product(
@@ -167,32 +166,6 @@ class Querier:
             version_number=row[1],
         )
 
-    def update_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
-        row = self._conn.execute(sqlalchemy.text(UPDATE_BATCH), {
-            "p1": reference,
-            "p2": sku,
-            "p3": purchased_quantity,
-            "p4": eta,
-        }).first()
-        if row is None:
-            return None
-        return models.Batch(
-            id=row[0],
-            reference=row[1],
-            sku=row[2],
-            purchased_quantity=row[3],
-            eta=row[4],
-        )
-
-    def update_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
-        row = self._conn.execute(sqlalchemy.text(UPDATE_PRODUCT), {"p1": sku, "p2": version_number}).first()
-        if row is None:
-            return None
-        return models.Product(
-            sku=row[0],
-            version_number=row[1],
-        )
-
 
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
@@ -208,8 +181,22 @@ class AsyncQuerier:
             batch_id=row[2],
         )
 
-    async def add_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
-        row = (await self._conn.execute(sqlalchemy.text(ADD_BATCH), {
+    async def add_order_line(self, *, sku: Optional[str], qty: int, orderid: Optional[str]) -> Optional[models.OrderLine]:
+        row = (await self._conn.execute(sqlalchemy.text(ADD_ORDER_LINE), {"p1": sku, "p2": qty, "p3": orderid})).first()
+        if row is None:
+            return None
+        return models.OrderLine(
+            id=row[0],
+            sku=row[1],
+            qty=row[2],
+            orderid=row[3],
+        )
+
+    async def clear_order_lines(self, *, batch_id: Optional[int]) -> None:
+        await self._conn.execute(sqlalchemy.text(CLEAR_ORDER_LINES), {"p1": batch_id})
+
+    async def create_or_update_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_OR_UPDATE_BATCH), {
             "p1": reference,
             "p2": sku,
             "p3": purchased_quantity,
@@ -225,19 +212,8 @@ class AsyncQuerier:
             eta=row[4],
         )
 
-    async def add_order_line(self, *, sku: Optional[str], qty: int, orderid: Optional[str]) -> Optional[models.OrderLine]:
-        row = (await self._conn.execute(sqlalchemy.text(ADD_ORDER_LINE), {"p1": sku, "p2": qty, "p3": orderid})).first()
-        if row is None:
-            return None
-        return models.OrderLine(
-            id=row[0],
-            sku=row[1],
-            qty=row[2],
-            orderid=row[3],
-        )
-
-    async def add_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
-        row = (await self._conn.execute(sqlalchemy.text(ADD_PRODUCT), {"p1": sku, "p2": version_number})).first()
+    async def create_or_update_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_OR_UPDATE_PRODUCT), {"p1": sku, "p2": version_number})).first()
         if row is None:
             return None
         return models.Product(
@@ -268,32 +244,6 @@ class AsyncQuerier:
 
     async def get_product(self, *, sku: str) -> Optional[models.Product]:
         row = (await self._conn.execute(sqlalchemy.text(GET_PRODUCT), {"p1": sku})).first()
-        if row is None:
-            return None
-        return models.Product(
-            sku=row[0],
-            version_number=row[1],
-        )
-
-    async def update_batch(self, *, reference: Optional[str], sku: str, purchased_quantity: int, eta: Optional[datetime.date]) -> Optional[models.Batch]:
-        row = (await self._conn.execute(sqlalchemy.text(UPDATE_BATCH), {
-            "p1": reference,
-            "p2": sku,
-            "p3": purchased_quantity,
-            "p4": eta,
-        })).first()
-        if row is None:
-            return None
-        return models.Batch(
-            id=row[0],
-            reference=row[1],
-            sku=row[2],
-            purchased_quantity=row[3],
-            eta=row[4],
-        )
-
-    async def update_product(self, *, sku: str, version_number: int) -> Optional[models.Product]:
-        row = (await self._conn.execute(sqlalchemy.text(UPDATE_PRODUCT), {"p1": sku, "p2": version_number})).first()
         if row is None:
             return None
         return models.Product(

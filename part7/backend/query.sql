@@ -1,27 +1,19 @@
--- name: add_batch :one
+-- name: create_or_update_batch :one
 INSERT INTO batches (
     reference, sku, purchased_quantity, eta
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING *;
-
--- name: update_batch :one
-UPDATE batches
-SET sku = $2, purchased_quantity = $3, eta = $4
-WHERE reference = $1
+) ON CONFLICT (reference)
+DO UPDATE SET sku = $2, purchased_quantity = $3, eta = $4
 RETURNING *;
 
--- name: add_product :one
+-- name: create_or_update_product :one
 INSERT INTO products (
     sku, version_number
 ) VALUES (
     $1, $2
-) RETURNING *;
-
--- name: update_product :one
-UPDATE products
-SET version_number = $2
-WHERE sku = $1
+) ON CONFLICT (sku)
+DO UPDATE SET version_number = $2
 RETURNING *;
 
 -- name: get_product :one
@@ -33,7 +25,6 @@ WHERE products.sku = $1;
 SELECT *
 FROM batches
 WHERE sku = $1;
-
 
 -- name: get_orderlines :many
 SELECT order_lines.*
@@ -56,3 +47,9 @@ INSERT INTO order_lines (
 ) VALUES (
     $1, $2, $3
 ) RETURNING *;
+
+-- name: clear_order_lines :exec
+DELETE FROM order_lines
+USING allocations
+WHERE order_lines.id = allocations.orderline_id
+AND allocations.batch_id = $1;

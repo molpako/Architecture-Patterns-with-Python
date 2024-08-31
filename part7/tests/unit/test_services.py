@@ -11,17 +11,18 @@ tomorrow = today + timedelta(days=1)
 
 class FakeRepository(repository.AbstractProductRepository):
     def __init__(self, products):
-        self._products = set(products)
-        self._bathces = set()
+        super().__init__()
 
-    async def add_batch(self, batch):
-        self._bathces.add(batch)
+        self._products = set(products)
 
     async def add(self, product):
         self._products.add(product)
 
-    async def get(self, sku):
+    async def _get(self, sku):
         return next((p for p in self._products if p.sku == sku), None)
+
+    async def update(self, product) -> None:
+        pass
 
     async def aiter(self):
         for product in self._products:

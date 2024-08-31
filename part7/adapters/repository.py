@@ -38,14 +38,29 @@ class BackendRepository(AbstractProductRepository):
         await self.update(product)
 
     async def update(self, product: model.Product) -> None:
-        if (p := await self._get(sku=product.sku)) is None:
-            p = model.Product(sku=product.sku, batches=[], version_number=0)
-
-        p.version_number = product.version_number
-        await self.querier.update_product(
-            sku=p.sku,
-            version_number=p.version_number,
+        await self.querier.create_or_update_product(
+            sku=product.sku, version_number=product.version_number
         )
+        for b in product.batches:
+            batch = await self.querier.create_or_update_batch(
+                reference=b.reference,
+                sku=b.sku,
+                purchased_quantity=b._purchased_quantity,
+                eta=b.eta,
+            )
+            if not batch:
+                continue
+
+            await self.querier.clear_order_lines(batch_id=batch.id)
+            for o in b._allocations:
+                order_line = await self.querier.add_order_line(
+                    sku=o.sku, qty=o.qty, orderid=o.orderid
+                )
+                if not order_line:
+                    continue
+                await self.querier.add_allocation(
+                    orderline_id=order_line.id, batch_id=batch.id
+                )
 
     async def _get(self, sku: str) -> model.Product | None:
         if not (product := await self.querier.get_product(sku=sku)):

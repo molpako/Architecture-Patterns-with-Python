@@ -15,7 +15,7 @@ CREATE TABLE order_lines (
 -- Table: batches
 CREATE TABLE batches (
     id SERIAL PRIMARY KEY,
-    reference VARCHAR(255),
+    reference VARCHAR(255) UNIQUE,
     sku VARCHAR(255) NOT NULL REFERENCES products(sku),
     purchased_quantity INTEGER NOT NULL,
     eta DATE
@@ -24,6 +24,6 @@ CREATE TABLE batches (
 -- Table: allocations
 CREATE TABLE allocations (
     id SERIAL PRIMARY KEY,
-    orderline_id INTEGER REFERENCES order_lines(id),
-    batch_id INTEGER REFERENCES batches(id)
+    orderline_id INTEGER REFERENCES order_lines(id) ON DELETE CASCADE,
+    batch_id INTEGER REFERENCES batches(id) ON DELETE CASCADE
 );
