@@ -19,8 +19,18 @@ class AbstractProductRepository(abc.ABC):
             self.seen.add(product)
         return product
 
+    async def get_by_batchref(self, batchref: str) -> model.Product:
+        product = await self._get_by_batchref(batchref)
+        if product:
+            self.seen.add(product)
+        return product
+
     @abc.abstractmethod
     async def _get(self, sku: str) -> model.Product:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def _get_by_batchref(self, sku: str) -> model.Product:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -38,7 +48,7 @@ class BackendRepository(AbstractProductRepository):
         await self.update(product)
 
     async def update(self, product: model.Product) -> None:
-        await self.querier.create_or_update_product(
+        _ = await self.querier.create_or_update_product(
             sku=product.sku, version_number=product.version_number
         )
         for b in product.batches:
@@ -65,20 +75,30 @@ class BackendRepository(AbstractProductRepository):
     async def _get(self, sku: str) -> model.Product | None:
         if not (product := await self.querier.get_product(sku=sku)):
             return None
+        return model.Product(
+            sku=product.sku,
+            batches=await self.batch_by_sku(product.sku),
+            version_number=product.version_number,
+        )
 
-        batches = [
+    async def _get_by_batchref(self, batchref: str) -> model.Product | None:
+        product = await self.querier.get_product_by_batchref(reference=batchref)
+        if not product:
+            return None
+        return model.Product(
+            sku=product.sku,
+            batches=await self.batch_by_sku(product.sku),
+            version_number=product.version_number,
+        )
+
+    async def batch_by_sku(self, sku: str):
+        return [
             await self.batch_to_domain(
                 b.id, b.reference, b.sku, b.purchased_quantity, b.eta
             )
-            async for b in self.querier.get_batch(sku=product.sku)
+            async for b in self.querier.get_batch(sku=sku)
             if b.reference is not None
         ]
-
-        return model.Product(
-            sku=product.sku,
-            batches=batches,
-            version_number=product.version_number,
-        )
 
     async def batch_to_domain(
         self, id: int, ref: str, sku: str, qty: int, eta: date | None

@@ -6,7 +6,7 @@ import config
 
 
 # Considering using https://github.com/testcontainers/testcontainers-python
-@pytest.fixture(scope="session")
+@pytest.fixture
 def async_engine():
     print(config.get_postgres_uri())
     return create_async_engine(config.get_postgres_uri())

@@ -21,6 +21,13 @@ SELECT *
 FROM products
 WHERE products.sku = $1;
 
+-- name: get_product_by_batchref :one
+SELECT products.*
+FROM products
+JOIN batches ON products.sku = batches.sku
+WHERE batches.reference = $1;
+
+
 -- name: get_batch :many
 SELECT *
 FROM batches

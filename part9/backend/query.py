@@ -82,6 +82,14 @@ WHERE products.sku = :p1
 """
 
 
+GET_PRODUCT_BY_BATCHREF = """-- name: get_product_by_batchref \\:one
+SELECT products.sku, products.version_number
+FROM products
+JOIN batches ON products.sku = batches.sku
+WHERE batches.reference = :p1
+"""
+
+
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
@@ -159,6 +167,15 @@ class Querier:
 
     def get_product(self, *, sku: str) -> Optional[models.Product]:
         row = self._conn.execute(sqlalchemy.text(GET_PRODUCT), {"p1": sku}).first()
+        if row is None:
+            return None
+        return models.Product(
+            sku=row[0],
+            version_number=row[1],
+        )
+
+    def get_product_by_batchref(self, *, reference: Optional[str]) -> Optional[models.Product]:
+        row = self._conn.execute(sqlalchemy.text(GET_PRODUCT_BY_BATCHREF), {"p1": reference}).first()
         if row is None:
             return None
         return models.Product(
@@ -244,6 +261,15 @@ class AsyncQuerier:
 
     async def get_product(self, *, sku: str) -> Optional[models.Product]:
         row = (await self._conn.execute(sqlalchemy.text(GET_PRODUCT), {"p1": sku})).first()
+        if row is None:
+            return None
+        return models.Product(
+            sku=row[0],
+            version_number=row[1],
+        )
+
+    async def get_product_by_batchref(self, *, reference: Optional[str]) -> Optional[models.Product]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_PRODUCT_BY_BATCHREF), {"p1": reference})).first()
         if row is None:
             return None
         return models.Product(
