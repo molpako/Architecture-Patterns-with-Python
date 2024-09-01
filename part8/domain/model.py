@@ -69,7 +69,7 @@ class Product:
         self.sku = sku
         self.batches = batches
         self.version_number = version_number
-        self.events = []
+        self.events: list[events.Event] = []
 
     def allocate(self, line: OrderLine) -> str | None:
         try:

@@ -29,7 +29,7 @@ async def allocate_endpoint(item: model.OrderLine):
         batchref = await services.allocate(
             item.orderid, item.sku, item.qty, unit_of_work.BackendUnitOfWork()
         )
-    except (model.OutOfStock, services.InvalidSku) as exc:
+    except services.InvalidSku as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"batchref": batchref}
@@ -54,3 +54,6 @@ async def add_batch(batch: AddBatchRequest):
         unit_of_work.BackendUnitOfWork(),
     )
     return "OK"
+
+
+def generate(): ...

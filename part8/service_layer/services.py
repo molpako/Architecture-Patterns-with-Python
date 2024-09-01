@@ -22,7 +22,7 @@ async def allocate(
         line = model.OrderLine(orderid, sku, qty)
         batchref = product.allocate(line)
         await uow.commit()
-    return batchref
+    return batchref if batchref else ""
 
 
 async def add_batch(
