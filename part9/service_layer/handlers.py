@@ -44,7 +44,7 @@ async def add_batch(
         await uow.commit()
 
 
-def send_out_of_stock_notification(event: events.OutOfStock):
+async def send_out_of_stock_notification(event: events.OutOfStock):
     email.send_mail(
         "stock@made.com",
         f"Out of stock for {event.sku}",

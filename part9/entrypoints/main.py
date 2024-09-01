@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, status
 
 
 from domain import events
-from service_layer import handlers, unit_of_work
+from service_layer import handlers, unit_of_work, messagebus
 
 
 app = FastAPI()
@@ -24,12 +24,10 @@ logger.addHandler(stream_handler)
 
 
 @app.post("/allocate", status_code=status.HTTP_201_CREATED)
-async def allocate_endpoint(item: events.AllocationRequired):
+async def allocate_endpoint(event: events.AllocationRequired):
     try:
-        batchref = await handlers.allocate(
-            item,
-            unit_of_work.BackendUnitOfWork(),
-        )
+        results = await messagebus.handle(event, unit_of_work.BackendUnitOfWork())
+        batchref = results.pop(0)
     except handlers.InvalidSku as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -47,8 +45,6 @@ class AddBatchRequest:
 @app.post("/batches", status_code=status.HTTP_201_CREATED)
 async def add_batch(batch: AddBatchRequest):
     eta_date = datetime.fromisoformat(batch.eta).date() if batch.eta else None
-    await handlers.add_batch(
-        events.BatchCreated(batch.ref, batch.sku, batch.qty, eta_date),
-        unit_of_work.BackendUnitOfWork(),
-    )
+    event = events.BatchCreated(batch.ref, batch.sku, batch.qty, eta_date)
+    await messagebus.handle(event, unit_of_work.BackendUnitOfWork())
     return "OK"

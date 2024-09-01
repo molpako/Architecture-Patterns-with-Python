@@ -4,7 +4,7 @@ import pytest
 
 from adapters import repository
 from domain import events
-from service_layer import handlers, unit_of_work
+from service_layer import handlers, unit_of_work, messagebus
 
 
 today = date.today()
@@ -14,7 +14,6 @@ tomorrow = today + timedelta(days=1)
 class FakeRepository(repository.AbstractProductRepository):
     def __init__(self, products):
         super().__init__()
-
         self._products = set(products)
 
     async def add(self, product):
@@ -50,13 +49,13 @@ class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
 @pytest.mark.asyncio
 async def test_returns_allocation():
     uow = FakeUnitOfWork()
-    await handlers.add_batch(
-        events.BatchCreated("b1", "COMPLICATED-LAMP", 100, None), uow
+    await messagebus.handle(
+        events.BatchCreated("batch1", "COMPLICATED-LAMP", 100, None), uow
     )
-    result = await handlers.allocate(
+    results = await messagebus.handle(
         events.AllocationRequired("o1", "COMPLICATED-LAMP", 10), uow
     )
-    assert result == "b1"
+    assert results.pop(0) == "batch1"
 
 
 @pytest.mark.asyncio
@@ -85,7 +84,7 @@ async def test_error_for_invalid_sku():
 @pytest.mark.asyncio
 async def test_add_batch_for_new_product():
     uow = FakeUnitOfWork()
-    await handlers.add_batch(
+    await messagebus.handle(
         events.BatchCreated("b1", "CRUNCHY-ARMCHAIR", 100, None), uow
     )
     assert await uow.products.get("CRUNCHY-ARMCHAIR") is not None

@@ -1,9 +1,11 @@
 from __future__ import annotations
 import abc
+from typing import Generator
+
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from adapters import repository
-from . import messagebus
+from domain import events
 
 import config
 
@@ -19,13 +21,11 @@ class AbstractUnitOfWork(abc.ABC):
 
     async def commit(self):
         await self._commit()
-        self.publish_events()
 
-    def publish_events(self):
+    def collect_new_events(self) -> Generator[events.Event]:
         for product in self.products.seen:
             while product.events:
-                event = product.events.pop(0)
-                messagebus.handle(event)
+                yield product.events.pop(0)
 
     @abc.abstractmethod
     async def _commit(self):
