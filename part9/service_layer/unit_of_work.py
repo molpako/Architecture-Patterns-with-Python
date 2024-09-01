@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 

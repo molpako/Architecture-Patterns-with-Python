@@ -11,8 +11,8 @@ import sys
 from fastapi import FastAPI, HTTPException, status
 
 
-import domain.model as model
-from service_layer import services, unit_of_work
+from domain import events
+from service_layer import handlers, unit_of_work
 
 
 app = FastAPI()
@@ -24,12 +24,13 @@ logger.addHandler(stream_handler)
 
 
 @app.post("/allocate", status_code=status.HTTP_201_CREATED)
-async def allocate_endpoint(item: model.OrderLine):
+async def allocate_endpoint(item: events.AllocationRequired):
     try:
-        batchref = await services.allocate(
-            item.orderid, item.sku, item.qty, unit_of_work.BackendUnitOfWork()
+        batchref = await handlers.allocate(
+            item,
+            unit_of_work.BackendUnitOfWork(),
         )
-    except services.InvalidSku as exc:
+    except handlers.InvalidSku as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"batchref": batchref}
@@ -46,14 +47,8 @@ class AddBatchRequest:
 @app.post("/batches", status_code=status.HTTP_201_CREATED)
 async def add_batch(batch: AddBatchRequest):
     eta_date = datetime.fromisoformat(batch.eta).date() if batch.eta else None
-    await services.add_batch(
-        batch.ref,
-        batch.sku,
-        batch.qty,
-        eta_date,  # type: _Date | Unbound
+    await handlers.add_batch(
+        events.BatchCreated(batch.ref, batch.sku, batch.qty, eta_date),
         unit_of_work.BackendUnitOfWork(),
     )
     return "OK"
-
-
-def generate(): ...
